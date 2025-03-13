@@ -2,8 +2,11 @@
 #include <GLFW/glfw3.h>
 
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <unordered_map>
 
-static unsigned int CompileShader(unsigned int type, std::string source)
+static unsigned int CompileShader(unsigned int type, std::string& source)
 {
     unsigned int id = glCreateShader(type);
     const char* src = source.c_str();
@@ -11,7 +14,7 @@ static unsigned int CompileShader(unsigned int type, std::string source)
     glCompileShader(id);
 
     int result;
-    glGetShaderiv(id, GL_LINK_STATUS, &result);
+    glGetShaderiv(id, GL_COMPILE_STATUS, &result);
     if (result == GL_FALSE)
     {
         int length;
@@ -20,12 +23,15 @@ static unsigned int CompileShader(unsigned int type, std::string source)
         glGetShaderInfoLog(id, length, &length, message);
         std::cout << "Failed to load " << (type == GL_FRAGMENT_SHADER ? "fragment" : "vertex") << " shader!" << std::endl;
         std::cout << message << std::endl;
+
+        glDeleteShader(id);
+        return 0;
     }
 
     return id;
 }
 
-static unsigned int CreateShader(std::string vertexShader, std::string fragmentShader)
+static unsigned int CreateShader(std::string& vertexShader, std::string& fragmentShader)
 {
     unsigned int program = glCreateProgram();
     unsigned int vs = CompileShader(GL_VERTEX_SHADER, vertexShader);
@@ -35,6 +41,60 @@ static unsigned int CreateShader(std::string vertexShader, std::string fragmentS
     glAttachShader(program, fs);
     glLinkProgram(program);
     glValidateProgram(program);
+
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+
+    return program;
+}
+
+static std::unordered_map<GLenum, std::string> ParseShader(const char* path)
+{
+    std::unordered_map<GLenum, std::string> result;
+
+    std::ifstream file(path);
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string src = buffer.str();
+
+    const char* token = "#type";
+    int length = strlen(token);
+
+    int pos = src.find(token);
+    while (pos != std::string::npos)
+    {
+        if (src.find("vertex", pos + length) == pos + length + 1)
+        {
+            size_t start = pos + length + 7;
+            size_t end = src.find(token, pos + length);
+
+            if (end == std::string::npos)
+            {
+                end = src.size();
+            }
+            result.emplace(GL_VERTEX_SHADER, src.substr(start, end - start));
+        }
+        else if (src.find("fragment", pos + length) == pos + length + 1)
+        {
+            size_t start = pos + length + 9;
+            size_t end = src.find(token, pos + length);
+
+            if (end == std::string::npos)
+            {
+                end = src.size();
+            }
+            result.emplace(GL_FRAGMENT_SHADER, src.substr(start, end - start));
+        }
+        else
+        {
+            std::cout << "Error parsing shader file!";
+            break; // TODO : create break point here
+        }
+
+        pos = src.find(token, pos + length);
+    }
+
+    return result;
 }
 
 int main(void)
@@ -78,8 +138,9 @@ int main(void)
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
 
-    // TODO : import shader files from Ellie, parse them into strings and pass them to create shaders here
-    // will need to make some sort of shader parsing class
+    std::unordered_map<GLenum, std::string> map = ParseShader("shaders/Texture.glsl");
+    unsigned int program = CreateShader(map[GL_VERTEX_SHADER], map[GL_FRAGMENT_SHADER]);
+    glUseProgram(program);
 
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
@@ -95,6 +156,8 @@ int main(void)
         /* Poll for and process events */
         glfwPollEvents();
     }
+
+    glDeleteProgram(program);
 
     glfwTerminate();
     return 0;
