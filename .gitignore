@@ -1,6 +1,7 @@
 # Directories
 .vs/
-x64/Debug/
+!x64/Debug/OpenGL.pdb
+!x64/Debug/OpenGL.exe
 
 # Files
 *.user

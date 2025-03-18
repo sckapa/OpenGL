@@ -6,6 +6,26 @@
 #include <sstream>
 #include <unordered_map>
 
+#define ASSERT(x) if(!(x)) __debugbreak()
+#define GLCall(x) GLClearErrors();\
+        x;\
+        ASSERT(GLPrintErrors(#x, __FILE__, __LINE__))
+
+static bool GLPrintErrors(const char* function, const char* file, int line)
+{
+    while (GLenum error = glGetError())
+    {
+        std::cout << "[OpenGL Error] : " << error << " Function : " << function << " Path : " << file << " Line : " << line;
+        return false;
+    }
+    return true;
+}
+
+static void GLClearErrors()
+{
+    while (glGetError() != GL_NO_ERROR);
+}
+
 static unsigned int CompileShader(unsigned int type, std::string& source)
 {
     unsigned int id = glCreateShader(type);
@@ -159,7 +179,7 @@ int main(void)
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+        GLCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
 
         /* Swap front and back buffers */
         glfwSwapBuffers(window);
